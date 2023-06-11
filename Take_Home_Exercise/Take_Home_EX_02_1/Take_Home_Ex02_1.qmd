@@ -1,0 +1,308 @@
+---
+title: "Take Home Exercise 2"
+execute: 
+  warning: false
+  echo: true
+  eval: true
+format: 
+  html:
+    code-fold: true
+    code-summary: "Show the code"
+---
+
+# 1.Introduction
+
+This exercise will attempt to Question 1 of Mini Challenge 2 from Vast Challenge 2023. This exercise focuses on utilizing visual analytics to identify temporal patterns within the FishEye knowledge graph.
+
+# 2.Data Preparation
+
+## 2.1 Installing Packages
+
+Necessary R packages are installed for analysis and visualization.
+
+```{r}
+pacman::p_load(visNetwork, lubridate, ggpraph, knitr, kableExtra,
+               tidyverse, tidygraph,dplyr, jsonlite, ggplot2)
+```
+
+## 2.2 Importing Data
+
+Json file 'mc2_challenge_graph.json" is imported and named as 'main'.
+
+```{r}
+
+main <- fromJSON("data/mc2_challenge_graph.json")
+```
+
+## 2.3 Extracting Nodes
+
+The code chunk is used to extract nodes data table from main list object and save the output in a tibble data frame object called main_nodes.
+
+```{r}
+main_nodes <- as_tibble(main$nodes) %>% select(id, shpcountry, rcvcountry)
+```
+
+## 2.4 Extracting Edges
+
+The code chunk is used to extract edges data table from main list object and save the output in a tibble data frame object called main_edges.
+
+```{r}
+main_edges <- as_tibble(main$links) %>%
+  mutate(ArrivalDate = ymd(arrivaldate)) %>%
+  mutate(Year = year(ArrivalDate)) %>%
+  select(source, target, ArrivalDate, Year, hscode, valueofgoods_omu, 
+         volumeteu, weightkg, valueofgoodsusd) %>% 
+  distinct()
+```
+
+## 2.5 Preparing Edges Data
+
+From the main_edges table, rows with hscode starting with 301-309(hscode only related to fish related products ) and Year from "2032" to "2034" (Top 3 years with highest weights) is selected.
+
+```{r}
+main_edges_aggregated <- main_edges %>%
+  filter(grepl("^30[1-9]", hscode)) %>% filter(Year >= 2032 & Year <= 2034) %>%
+  group_by(source, target, hscode, Year) %>%
+    summarise(weights = n()) %>%
+  filter(source!=target) %>%
+  filter(weights > 20) %>%
+  ungroup()
+```
+
+## 2.6 Preparing Nodes Data
+
+New nodes data is prepared using the source and target field from main_edges_aggregated.
+
+```{r}
+id1 <- main_edges_aggregated %>%
+  select(source) %>%
+  rename(id = source)
+id2 <- main_edges_aggregated %>%
+  select(target) %>%
+  rename(id = target)
+main_nodes_extracted <- rbind(id1, id2) %>%
+  distinct()
+```
+
+## 2.7 Building the tidygrpg Data Model
+
+```{r}
+main_graph <- tbl_graph(nodes = main_nodes_extracted,
+                        edges = main_edges_aggregated,
+                        directed = TRUE)
+```
+
+## 2.8 Converting edges data into data frame
+
+```{r}
+edges_df <- main_graph %>%
+  activate(edges) %>%
+  as_tibble()
+```
+
+## 2.9 Converting nodes data into data frame
+
+```{r}
+nodes_df <- main_graph %>%
+  activate(nodes) %>%
+  as_tibble() %>%
+  rename(label=id) %>%
+  mutate(id=row_number()) %>%
+  select(id,label) %>% arrange(label)
+```
+
+## 3. Insights from Year 2032
+
+## 3.1 Overall Fishing Links in 2032
+
+An interactive graph is built for the fishing links in 2032. We can see that out of all the entities, few entities are the centers of all the relationships across different entities.
+
+```{r}
+visNetwork(nodes_df, edges_df %>% filter(Year==2032)) %>%
+  visIgraphLayout(layout = "layout_with_fr") %>%
+  visOptions(highlightNearest = TRUE,
+             nodesIdSelection = TRUE) %>%
+  visEdges(arrows = 'to',
+           smooth = list(enabled=TRUE,
+                         type="curvedCW")) %>%
+  visLegend() %>%
+  visLayout(randomSeed = 123)
+```
+
+## 3.2 Selecting central Entities
+
+After analyzing the above network, five entities which seem most busy are selected and stored in new data frame.
+
+```{r}
+selected_ids_2032 <- c(510, 522, 512, 503, 505)
+
+top_ids_2032 <- edges_df %>% filter(Year == '2032') %>% 
+  filter(from %in% selected_ids_2032 | to %in% selected_ids_2032)
+```
+
+## 3.3 Plotting only Selected Entities
+
+New network graph is built to highlight the relationships between selected entities. All these 5 selected entities seem to have interacted with one another at least once.
+
+```{r}
+visNetwork(nodes_df, top_ids_2032) %>%
+  visIgraphLayout(layout = "layout_with_fr") %>%
+  visOptions(highlightNearest = TRUE,
+             nodesIdSelection = TRUE) %>%
+  visEdges(arrows = 'to',
+           smooth = list(enabled=TRUE,
+                         type="curvedCW")) %>%
+  visLegend() %>%
+  visLayout(randomSeed = 123)
+```
+
+## 3.4 Selected Entities Details
+
+In the below table, it can be seen that these five entities alone accounted for around 35% of all the events happened in 2032. Distinct_count shows the unique entities from which they have received any fishery related goods. These 5 entities which can be assumed as central entities have received goods from around 190 different entities.
+
+```{r}
+top_details_2032 <- as.data.frame(top_ids_2032 %>%
+  group_by(to) %>%
+    summarise(distinct_count = n_distinct(from), total_weight=sum(weights)) %>%
+  left_join(nodes_df, by = c("to" = "id")) %>%
+  mutate(percentage_of_total = round(total_weight / sum(edges_df$weights[edges_df$Year == 2032]) * 100, 2)) %>% select(label,distinct_count,total_weight,percentage_of_total)) %>% arrange(desc(total_weight))
+
+#| fig-height: 4
+top_details_2032 %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)%>%
+  column_spec(4, bold = T) %>%
+  row_spec(0, bold = T, color = "white", background = "#D7261E")
+```
+
+# 4 Insights from Year 2033
+
+## 4.1 Overall Fishing links in 2033
+
+Similarly as 2032, in 2033 too, if we zoom in into the graph, we can see few entities with highly significant traffic which can be assumed as central entities.
+
+```{r}
+visNetwork(nodes_df, edges_df %>% filter(Year==2033)) %>%
+  visIgraphLayout(layout = "layout_with_fr") %>%
+  visOptions(highlightNearest = TRUE,
+             nodesIdSelection = TRUE) %>%
+  visEdges(arrows = 'to',
+           smooth = list(enabled=TRUE,
+                         type="curvedCW")) %>%
+  visLegend() %>%
+  visLayout(randomSeed = 123)
+```
+
+## 4.2 Selecting central Entities
+
+After analyzing the above network, additional to 5 entities selected in 2023, 2 new entities, total 7 entities which seem most busy are selected and stored in new data frame.
+
+```{r}
+selected_ids_2033 <- c(510, 522, 512, 503, 505, 511, 517)
+
+top_ids_2033 <- edges_df %>% filter(Year == '2033') %>% 
+  filter(from %in% selected_ids_2033 | to %in% selected_ids_2033)
+```
+
+## 4.3 Plotting only Selected Entities
+
+New network graph is built to highlight the relationships between selected entities. All these seven entities have not interacted directly, but they have interacted through another intermediaries.
+
+```{r}
+visNetwork(nodes_df, top_ids_2033) %>%
+  visIgraphLayout(layout = "layout_with_fr") %>%
+  visOptions(highlightNearest = TRUE,
+             nodesIdSelection = TRUE) %>%
+  visEdges(arrows = 'to',
+           smooth = list(enabled=TRUE,
+                         type="curvedCW")) %>%
+  visLegend() %>%
+  visLayout(randomSeed = 123)
+```
+
+## 4.4 Selected Entities Details
+
+These 7 entities accounted for around 40% of all the events happened in 2033 and they have receive fishery related goods from 242 different entities (33% of total entities).
+
+```{r}
+top_details_2033 <- top_ids_2033 %>%
+  group_by(to) %>%
+    summarise(distinct_count = n_distinct(from), total_weight=sum(weights)) %>%
+  left_join(nodes_df, by = c("to" = "id")) %>%
+  mutate(percentage_of_total = round(total_weight / sum(edges_df$weights[edges_df$Year == 2033]) * 100, 2)) %>% select(label,distinct_count,total_weight,percentage_of_total) %>% arrange(desc(total_weight))
+
+#| fig-height: 4
+top_details_2033 %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)%>%
+  column_spec(4, bold = T) %>%
+  row_spec(0, bold = T, color = "white", background = "#D7261E")
+```
+
+# 5 Insights from Year 2034
+
+## 5.1 Overall Fishing links in 2034
+
+Similarly as previous years, in 2033 too,we can see few entities with significantly busy traffic which can be assumed as central entities.
+
+```{r}
+visNetwork(nodes_df, edges_df %>% filter(Year==2034)) %>%
+  visIgraphLayout(layout = "layout_with_fr") %>%
+  visOptions(highlightNearest = TRUE,
+             nodesIdSelection = TRUE) %>%
+  visEdges(arrows = 'to',
+           smooth = list(enabled=TRUE,
+                         type="curvedCW")) %>%
+  visLegend() %>%
+  visLayout(randomSeed = 123)
+```
+
+## 5.2 Selecting central Entities
+
+This time, total 8 entities with one new additional entity to previous selection which can be assumed as central entities are selected and stored in new data frame.
+
+```{r}
+selected_ids_2034 <- c(510, 522, 512, 503, 505, 511, 517,516)
+
+top_ids_2034 <- edges_df %>% filter(Year == '2034') %>% 
+  filter(from %in% selected_ids_2033 | to %in% selected_ids_2033)
+```
+
+## 5.3 Plotting only Selected Entities
+
+New network graph is built to highlight the relationships between selected entities. Similar pattern in which these entities interacted through another different enitites can be also observed here.
+
+```{r}
+visNetwork(nodes_df, top_ids_2034) %>%
+  visIgraphLayout(layout = "layout_with_fr") %>%
+  visOptions(highlightNearest = TRUE,
+             nodesIdSelection = TRUE) %>%
+  visEdges(arrows = 'to',
+           smooth = list(enabled=TRUE,
+                         type="curvedCW")) %>%
+  visLegend() %>%
+  visLayout(randomSeed = 123)
+```
+
+## 5.4 Selected Entities Details
+
+In 2024, 8 entities which can be assumed as central entities accounted for around 40% of all the events happened in 2034 and they have receive fishery related goods from 238 different entities (32% of total entities).
+
+```{r}
+top_details_2034 <- top_ids_2034 %>%
+  group_by(to) %>%
+    summarise(distinct_count = n_distinct(from), total_weight=sum(weights)) %>%
+  left_join(nodes_df, by = c("to" = "id")) %>%
+  mutate(percentage_of_total = round(total_weight / sum(edges_df$weights[edges_df$Year == 2034]) * 100, 2)) %>% select(label,distinct_count,total_weight,percentage_of_total) %>% arrange(desc(total_weight))
+
+#| fig-height: 4
+top_details_2034 %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)%>%
+  column_spec(4, bold = T) %>%
+  row_spec(0, bold = T, color = "white", background = "#D7261E")
+```
+
+# Conclusion
+
+Throughout this exercise,it cn be observed that certain entities can be considered as central entities within the network. These central entities consistently interact with a multitude of other entities over the years, indicating a strong and continuous presence in the whole network throughout the years.

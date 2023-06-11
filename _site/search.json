@@ -320,5 +320,222 @@
     "title": "MC1",
     "section": "",
     "text": "pacman::p_load(jsonlite,tidygraph, ggraph, visNetwork, tidyverse)\n\n\nMC1 <- fromJSON(\"data/MC1.json\")\n\n\nMC1_nodes <- as_tibble(MC1$nodes) %>% select(id, type, country)\n\n\nMC1_edges <- as_tibble(MC1$links) %>% select(source,target, type, weight, key)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html",
+    "href": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html",
+    "title": "Take Home Exercise 01",
+    "section": "",
+    "text": "The exercise aims to apply the concepts and methods of visual analytics to reveal demographic and financial characteristics of the city by using appropriate static and interactive statistical graphics methods. The visualizations were designed to be user-friendly and interactive, helping city managers and planners explore the complex data and reveal hidden patterns."
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html#installing-packages",
+    "href": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html#installing-packages",
+    "title": "Take Home Exercise 01",
+    "section": "2.1 Installing Packages",
+    "text": "2.1 Installing Packages\n\n\nShow the code\npacman::p_load(plotly, ggstatsplot, ggdist, ggthemes, tidyverse, tidyr,dplyr, ggridges,colorspace, rstantools, PMCMRplus, ggiraph, DT, hexbin, viridis, corrplot, data.table)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html#importing-data",
+    "href": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html#importing-data",
+    "title": "Take Home Exercise 01",
+    "section": "2.2 Importing Data",
+    "text": "2.2 Importing Data\n\n\nShow the code\nFinancialJournal <- read_csv(\"data/FinancialJournal.csv\", show_col_types = FALSE)\n                      \nParticipants <- read_csv(\"data/Participants.csv\",show_col_types = FALSE)\n\n\n\n2.2.1 Joining Tables\nTwo data sets are joined by matching Participant ID and stored in the new data table named “compiled”.\n\n\nShow the code\ncompiled <- merge(FinancialJournal, Participants, by = \"participantId\")\n\n\n\n\n2.2.2 Separating Date into Month and Year and Grouping by month\nTimestamp was converted into Month and Year format for further analysis and after that time stamp column was removed from the data table.\n\n\nShow the code\nsetDT(compiled)[, Month_Yr := format(as.Date(timestamp), \"%Y-%m\")]\n\n\n\n\nShow the code\n# Removing Timestamp column\ncompiled$timestamp <- NULL\n\n\nAfter that, transaction from “compiled” data table are grouped into each month per participant id and the resulting data table is named “compiled_monthly”.\n\n\nShow the code\ncompiled_monthly <- compiled %>%\n  group_by(participantId,Month_Yr,category, householdSize, age, educationLevel,haveKids,interestGroup,joviality) %>%\n  summarize(total_amount = sum(amount), .groups=\"keep\")\n\n\n\n\n2.2.3 Splitting Categories Into Columns\nFor more thorough analysis, each category in category column is split into different column and stored in the data table called “data_cleaned”.\n\n\nShow the code\ndata_cleaned <- pivot_wider(compiled_monthly, \n                       names_from = category, \n                       values_from = total_amount)\n\n\nAmount in negative values are converted into absolute values.\n\n\nShow the code\ndata_cleaned <- data_cleaned %>% \n  mutate_at(vars(Education, Food, Recreation, Shelter, Wage), abs)\n\n\n\n\n2.2.5 Replacing blanks with zero\nSince there are some blanks in education and rent adjustment columns, they are replaced with 0.\n\n\nShow the code\ndata_cleaned[is.na(data_cleaned)] <- 0"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html#wages",
+    "href": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html#wages",
+    "title": "Take Home Exercise 01",
+    "section": "3.1 Wages",
+    "text": "3.1 Wages\n\n3.1.1 Wages by Education Level\nRidge plot is used to illustrate the distribution of wages across different education levels. It can be seen that distribution of lower wages are more dense in education level - “Low” and “High School and College” while distribution of higher wages are more dense in education level - “Graduate” and “Bachelors”.\n\n\nShow the code\nggplot(data_cleaned, \n       aes(x = Wage, \n           y = educationLevel,\n           fill = after_stat(x))) +\n  geom_density_ridges_gradient(\n    scale = 3,\n    rel_min_height = 0.01) +\n  scale_fill_viridis_c(name = \"Wages\",\n                       option = \"H\") +\n  scale_x_continuous(\n    name = \"Wage\",\n    expand = c(0, 0)\n  ) +\n  scale_y_discrete(name = NULL, expand = expansion(add = c(0.2, 2.6)))+\n  theme_ridges()\n\n\n\n\n\n\n\n3.1.2 Confidence Interval of Mean Wages by Education Level\nNext, to illustrate the confidence interval of distribution of mean wages, stat_gradientinterval() is used and tooltip showing mean score of each level is added to make the plot more interactive.\n\n\nShow the code\ntooltip <- function(y, ymax, accuracy = .01) {\n  mean <- scales::number(y, accuracy = accuracy)\n  paste(\"Mean Wages:\", mean)\n}\ngg_point <- data_cleaned %>%\n  ggplot(aes(x = educationLevel, \n             y = Wage)) +\n  stat_gradientinterval(   \n    fill = \"darkblue\",      \n    show.legend = TRUE     \n  ) + stat_summary(aes(y = Wage, \n                   tooltip = after_stat(  \n                     tooltip(y, ymax))),  \n    fun.data = \"mean_se\",\n    geom = GeomInteractiveCol, fill = \"darkblue\", alpha = 0\n  )+\n  labs(\n    title = \"Confidence intervals of mean Wages\")\ngirafe(ggobj = gg_point,\n       width_svg = 8,\n       height_svg = 8*0.618)\n\n\n\n\n\n\n\n\n3.1.3 Wages vs spending on Shelter\nNext, to check if there is any correlation between Wage and amount spent on Shelter, ggscatterstats() function is used to build visualized significance test of correlation between Wage and Shelter. Although correlation is not very strong, it can be seen that the amount spent on shelter also increases as wage gets higher.\n\n\nShow the code\nggscatterstats(\n  data = data_cleaned,\n  x = Wage,\n  y = Shelter,\n  marginal = FALSE,\n  )\n\n\n\n\n\n\n\n3.1.4 Wages vs Shelter by Timeline\nIn this section, animated bubble plot is built using plotly to visualize how wage and amount spent on shelter has changed throughout a year from March 2022 to Feb 2023. Hover is also used to show the interest group and participants who have kids or not are classified in different colors.\n\n\nShow the code\nbubbleplot <- data_cleaned %>%\n  plot_ly(x = ~Wage, \n          y = ~Shelter, \n          size = ~householdSize, \n          color = ~haveKids,\n          sizes = c(2, 100),\n          frame = ~Month_Yr, \n          text = ~interestGroup, \n          hoverinfo = \"text\",\n          type = 'scatter',\n          mode = 'markers',\n          alpha = 0.5\n          ) %>%\n  layout(showlegend = TRUE)\nbubbleplot"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html#jovaility",
+    "href": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html#jovaility",
+    "title": "Take Home Exercise 01",
+    "section": "3.2 Jovaility",
+    "text": "3.2 Jovaility\n\n3.2.1 Is there any difference between joviality between participants who have kids and not?\nTo see joviality difference of participant who have kids and who don’t have kids, ggbetweenstats is used to illustrate two sample mean test of Joviality. Based on the graph below, it can be seen that joviality is not much difference between two groups.\n\n\nShow the code\nggbetweenstats(\n  data = Participants,\n  x = haveKids, \n  y = joviality,\n  type = \"np\",\n  messages = FALSE\n)\n\n\n\n\n\n\n\n3.2.2 Joviality across Education Levels\nggbetweenstats() is used again to visualize One-way anova test for joviality be education level.\n\n\nShow the code\nggbetweenstats(\n  data = Participants,\n  x = educationLevel, \n  y = joviality,\n  type = \"p\",\n  mean.ci = TRUE, \n  pairwise.comparisons = TRUE, \n  pairwise.display = \"s\",\n  p.adjust.method = \"fdr\",\n  messages = FALSE\n)\n\n\n\n\n\n\n\n3.2.3 Joviality by Wage\nAverage wage per participant are calculated and stored in data table named average_wage_ID.\n\n\nShow the code\naverage_wage_perID <- data_cleaned %>%\n  group_by(participantId,joviality,age) %>%\n  summarize(average_wage = mean(Wage), .groups = 'keep')\n\n\nTo show that joviality of participants with different wages are different, scatterplot with hexagon bin is used.\n\n\nShow the code\nwage_joviality <- ggplot(data=average_wage_perID, \n            aes(average_wage,\n                joviality)) +\n  scale_fill_gradient2(low = \"#132B43\",\n  high = \"#56B1F7\",\n  space = \"Lab\",\n  na.value = \"grey50\",\n  guide = \"colourbar\",\n  aesthetics = \"colour\") +\n  labs(x = \"Average Wage\", y = \"Joviality\", title = \"Scatter Plot with Hexagons\")\nwage_joviality + geom_hex(bins=15)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html#interest-groups",
+    "href": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html#interest-groups",
+    "title": "Take Home Exercise 01",
+    "section": "3.3 Interest Groups",
+    "text": "3.3 Interest Groups\n\n3.3.1 Binning Ages\nAges are biined into 4 different bins and stored in new table called “age_binned”.\n\n\nShow the code\nage_binned <- Participants %>% \n  mutate(age_bins = cut(age, \n               breaks = c(0,29,39,50))\n)\n\n\nThen, using ggbarstats(), interest groups according to different age groups are shown.\n\n\nShow the code\nggbarstats(age_binned, \n           x = age_bins, \n           y = interestGroup)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html#expenses",
+    "href": "Take_Home_Exercise/Take_Home_EX_01/Take_Home_Ex01.html#expenses",
+    "title": "Take Home Exercise 01",
+    "section": "3.4 Expenses",
+    "text": "3.4 Expenses\n\n3.4.1 Average Amount Spent on Different Categories by Household Size\nA new data table is created to store avearge amount spent on different categories by each household size.\n\n\nShow the code\ncategories_to_keep <- c('Shelter', 'Food', 'Recreation', 'Education')\namount_spent_byHHsize <- compiled_monthly %>%\n  filter(category %in% categories_to_keep) %>%\n  group_by(householdSize,category) %>%\n  summarize(average_amount_spent = abs(mean(total_amount)), .groups = 'keep')\n\n\nIt can be seen that only participants with Household size with 3 spends on education.\n\n\nShow the code\namount_spent <- ggplot(amount_spent_byHHsize, \n                aes(householdSize, average_amount_spent, fill = category)) + \n  geom_bar(stat=\"identity\") +\n\n  labs(title = \"Average Amount Spent by Household Size\", x = \"householdSize\", y = \"average_amount_spent\", fill = \"Category\") +\n  scale_fill_brewer(palette = \"Set2\")+\n  theme_minimal()+\n  theme(text = element_text(family = \"Garamond\"),\n        plot.title = element_text(hjust = 0.4, size = 15, face = 'bold'),\n        plot.margin = margin(20, 20, 20, 20),\n        legend.position = \"bottom\",\n        axis.text = element_text(size = 8, face = \"bold\"),\n        axis.text.x = element_text(angle = 0, vjust = 0.5, hjust=1),\n        axis.title.x = element_text(hjust = 0.5, size = 12, face = \"bold\"),\n        axis.title.y = element_text(hjust = 0.5, size = 12, face = \"bold\"))\n\nggplotly(amount_spent)\n\n\n\n\n\n\n\n\n3.4.2 Correlation Plot\nBefore creating correlation plot, data table is formed into data frame.\n\n\nShow the code\ndf <- as.data.frame(data_cleaned)\ndf_expenses <- select(df,Education,Food,Recreation,Shelter,Wage)\ncorrelation <- cor(df_expenses)\n\n\nTo test if there is any correlation between spending category including wage, correlation plot is created using corrplot().\n\n\nShow the code\ncol <- colorRampPalette(c(\"#BB4444\", \"#EE9988\", \"#FFFFFF\", \"#77AADD\", \"#4477AA\"))\ncorrplot(correlation, method=\"color\", col=col(200),  \n         type=\"upper\", order=\"hclust\", \n         addCoef.col = \"black\", # Add coefficient of correlation\n         tl.col=\"black\", tl.srt=45, #Text label color and rotation\n         # hide correlation coefficient on the principal diagonal\n         diag=FALSE \n         )"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html",
+    "title": "Take Home Exercise 2",
+    "section": "",
+    "text": "This exercise will attempt to Question 1 of Mini Challenge 2 from Vast Challenge 2023. This exercise focuses on utilizing visual analytics to identify temporal patterns within the FishEye knowledge graph."
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#installing-packages",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#installing-packages",
+    "title": "Take Home Exercise 2",
+    "section": "2.1 Installing Packages",
+    "text": "2.1 Installing Packages\nNecessary R packages are installed for analysis and visualization.\n\n\nShow the code\npacman::p_load(visNetwork, lubridate, ggpraph, knitr, kableExtra,\n               tidyverse, tidygraph,dplyr, jsonlite, ggplot2)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#importing-data",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#importing-data",
+    "title": "Take Home Exercise 2",
+    "section": "2.2 Importing Data",
+    "text": "2.2 Importing Data\nJson file ‘mc2_challenge_graph.json” is imported and named as ’main’.\n\n\nShow the code\nmain <- fromJSON(\"data/mc2_challenge_graph.json\")"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#extracting-nodes",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#extracting-nodes",
+    "title": "Take Home Exercise 2",
+    "section": "2.3 Extracting Nodes",
+    "text": "2.3 Extracting Nodes\nThe code chunk is used to extract nodes data table from main list object and save the output in a tibble data frame object called main_nodes.\n\n\nShow the code\nmain_nodes <- as_tibble(main$nodes) %>% select(id, shpcountry, rcvcountry)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#extracting-edges",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#extracting-edges",
+    "title": "Take Home Exercise 2",
+    "section": "2.4 Extracting Edges",
+    "text": "2.4 Extracting Edges\nThe code chunk is used to extract edges data table from main list object and save the output in a tibble data frame object called main_edges.\n\n\nShow the code\nmain_edges <- as_tibble(main$links) %>%\n  mutate(ArrivalDate = ymd(arrivaldate)) %>%\n  mutate(Year = year(ArrivalDate)) %>%\n  select(source, target, ArrivalDate, Year, hscode, valueofgoods_omu, \n         volumeteu, weightkg, valueofgoodsusd) %>% \n  distinct()"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#preparing-edges-data",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#preparing-edges-data",
+    "title": "Take Home Exercise 2",
+    "section": "2.5 Preparing Edges Data",
+    "text": "2.5 Preparing Edges Data\nFrom the main_edges table, rows with hscode starting with 301-309(hscode only related to fish related products ) and Year from “2032” to “2034” (Top 3 years with highest weights) is selected.\n\n\nShow the code\nmain_edges_aggregated <- main_edges %>%\n  filter(grepl(\"^30[1-9]\", hscode)) %>% filter(Year >= 2032 & Year <= 2034) %>%\n  group_by(source, target, hscode, Year) %>%\n    summarise(weights = n()) %>%\n  filter(source!=target) %>%\n  filter(weights > 20) %>%\n  ungroup()"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#preparing-nodes-data",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#preparing-nodes-data",
+    "title": "Take Home Exercise 2",
+    "section": "2.6 Preparing Nodes Data",
+    "text": "2.6 Preparing Nodes Data\nNew nodes data is prepared using the source and target field from main_edges_aggregated.\n\n\nShow the code\nid1 <- main_edges_aggregated %>%\n  select(source) %>%\n  rename(id = source)\nid2 <- main_edges_aggregated %>%\n  select(target) %>%\n  rename(id = target)\nmain_nodes_extracted <- rbind(id1, id2) %>%\n  distinct()"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#building-the-tidygrpg-data-model",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#building-the-tidygrpg-data-model",
+    "title": "Take Home Exercise 2",
+    "section": "2.7 Building the tidygrpg Data Model",
+    "text": "2.7 Building the tidygrpg Data Model\n\n\nShow the code\nmain_graph <- tbl_graph(nodes = main_nodes_extracted,\n                        edges = main_edges_aggregated,\n                        directed = TRUE)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#converting-edges-data-into-data-frame",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#converting-edges-data-into-data-frame",
+    "title": "Take Home Exercise 2",
+    "section": "2.8 Converting edges data into data frame",
+    "text": "2.8 Converting edges data into data frame\n\n\nShow the code\nedges_df <- main_graph %>%\n  activate(edges) %>%\n  as_tibble()"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#converting-nodes-data-into-data-frame",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#converting-nodes-data-into-data-frame",
+    "title": "Take Home Exercise 2",
+    "section": "2.9 Converting nodes data into data frame",
+    "text": "2.9 Converting nodes data into data frame\n\n\nShow the code\nnodes_df <- main_graph %>%\n  activate(nodes) %>%\n  as_tibble() %>%\n  rename(label=id) %>%\n  mutate(id=row_number()) %>%\n  select(id,label) %>% arrange(label)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#insights-from-year-2032",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#insights-from-year-2032",
+    "title": "Take Home Exercise 2",
+    "section": "3. Insights from Year 2032",
+    "text": "3. Insights from Year 2032"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#overall-fishing-links-in-2032",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#overall-fishing-links-in-2032",
+    "title": "Take Home Exercise 2",
+    "section": "3.1 Overall Fishing Links in 2032",
+    "text": "3.1 Overall Fishing Links in 2032\nAn interactive graph is built for the fishing links in 2032. We can see that out of all the entities, few entities are the centers of all the relationships across different entities.\n\n\nShow the code\nvisNetwork(nodes_df, edges_df %>% filter(Year==2032)) %>%\n  visIgraphLayout(layout = \"layout_with_fr\") %>%\n  visOptions(highlightNearest = TRUE,\n             nodesIdSelection = TRUE) %>%\n  visEdges(arrows = 'to',\n           smooth = list(enabled=TRUE,\n                         type=\"curvedCW\")) %>%\n  visLegend() %>%\n  visLayout(randomSeed = 123)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#selecting-central-entities",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#selecting-central-entities",
+    "title": "Take Home Exercise 2",
+    "section": "3.2 Selecting central Entities",
+    "text": "3.2 Selecting central Entities\nAfter analyzing the above network, five entities which seem most busy are selected and stored in new data frame.\n\n\nShow the code\nselected_ids_2032 <- c(510, 522, 512, 503, 505)\n\ntop_ids_2032 <- edges_df %>% filter(Year == '2032') %>% \n  filter(from %in% selected_ids_2032 | to %in% selected_ids_2032)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#plotting-only-selected-entities",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#plotting-only-selected-entities",
+    "title": "Take Home Exercise 2",
+    "section": "3.3 Plotting only Selected Entities",
+    "text": "3.3 Plotting only Selected Entities\nNew network graph is built to highlight the relationships between selected entities. All these 5 selected entities seem to have interacted with one another at least once.\n\n\nShow the code\nvisNetwork(nodes_df, top_ids_2032) %>%\n  visIgraphLayout(layout = \"layout_with_fr\") %>%\n  visOptions(highlightNearest = TRUE,\n             nodesIdSelection = TRUE) %>%\n  visEdges(arrows = 'to',\n           smooth = list(enabled=TRUE,\n                         type=\"curvedCW\")) %>%\n  visLegend() %>%\n  visLayout(randomSeed = 123)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#selected-entities-details",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#selected-entities-details",
+    "title": "Take Home Exercise 2",
+    "section": "3.4 Selected Entities Details",
+    "text": "3.4 Selected Entities Details\nIn the below table, it can be seen that these five entities alone accounted for around 35% of all the events happened in 2032. Distinct_count shows the unique entities from which they have received any fishery related goods. These 5 entities which can be assumed as central entities have received goods from around 190 different entities.\n\n\nShow the code\ntop_details_2032 <- as.data.frame(top_ids_2032 %>%\n  group_by(to) %>%\n    summarise(distinct_count = n_distinct(from), total_weight=sum(weights)) %>%\n  left_join(nodes_df, by = c(\"to\" = \"id\")) %>%\n  mutate(percentage_of_total = round(total_weight / sum(edges_df$weights[edges_df$Year == 2032]) * 100, 2)) %>% select(label,distinct_count,total_weight,percentage_of_total)) %>% arrange(desc(total_weight))\n\n#| fig-height: 4\ntop_details_2032 %>%\n  kbl() %>%\n  kable_paper(\"hover\", full_width = F)%>%\n  column_spec(4, bold = T) %>%\n  row_spec(0, bold = T, color = \"white\", background = \"#D7261E\")\n\n\n\n\n \n  \n    label \n    distinct_count \n    total_weight \n    percentage_of_total \n  \n \n\n  \n    Pao gan SE Seal \n    29 \n    4544 \n    10.32 \n  \n  \n    Caracola del Sol Services \n    47 \n    4521 \n    10.27 \n  \n  \n    Mar del Este CJSC \n    40 \n    3796 \n    8.63 \n  \n  \n    hǎi dǎn Corporation Wharf \n    39 \n    1874 \n    4.26 \n  \n  \n    Costa de la Felicidad Shipping \n    30 \n    1709 \n    3.88"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#overall-fishing-links-in-2033",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#overall-fishing-links-in-2033",
+    "title": "Take Home Exercise 2",
+    "section": "4.1 Overall Fishing links in 2033",
+    "text": "4.1 Overall Fishing links in 2033\nSimilarly as 2032, in 2033 too, if we zoom in into the graph, we can see few entities with highly significant traffic which can be assumed as central entities.\n\n\nShow the code\nvisNetwork(nodes_df, edges_df %>% filter(Year==2033)) %>%\n  visIgraphLayout(layout = \"layout_with_fr\") %>%\n  visOptions(highlightNearest = TRUE,\n             nodesIdSelection = TRUE) %>%\n  visEdges(arrows = 'to',\n           smooth = list(enabled=TRUE,\n                         type=\"curvedCW\")) %>%\n  visLegend() %>%\n  visLayout(randomSeed = 123)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#selecting-central-entities-1",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#selecting-central-entities-1",
+    "title": "Take Home Exercise 2",
+    "section": "4.2 Selecting central Entities",
+    "text": "4.2 Selecting central Entities\nAfter analyzing the above network, additional to 5 entities selected in 2023, 2 new entities, total 7 entities which seem most busy are selected and stored in new data frame.\n\n\nShow the code\nselected_ids_2033 <- c(510, 522, 512, 503, 505, 511, 517)\n\ntop_ids_2033 <- edges_df %>% filter(Year == '2033') %>% \n  filter(from %in% selected_ids_2033 | to %in% selected_ids_2033)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#plotting-only-selected-entities-1",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#plotting-only-selected-entities-1",
+    "title": "Take Home Exercise 2",
+    "section": "4.3 Plotting only Selected Entities",
+    "text": "4.3 Plotting only Selected Entities\nNew network graph is built to highlight the relationships between selected entities. All these seven entities have not interacted directly, but they have interacted through another intermediaries.\n\n\nShow the code\nvisNetwork(nodes_df, top_ids_2033) %>%\n  visIgraphLayout(layout = \"layout_with_fr\") %>%\n  visOptions(highlightNearest = TRUE,\n             nodesIdSelection = TRUE) %>%\n  visEdges(arrows = 'to',\n           smooth = list(enabled=TRUE,\n                         type=\"curvedCW\")) %>%\n  visLegend() %>%\n  visLayout(randomSeed = 123)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#selected-entities-details-1",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#selected-entities-details-1",
+    "title": "Take Home Exercise 2",
+    "section": "4.4 Selected Entities Details",
+    "text": "4.4 Selected Entities Details\nThese 7 entities accounted for around 40% of all the events happened in 2033 and they have receive fishery related goods from 242 different entities (33% of total entities).\n\n\nShow the code\ntop_details_2033 <- top_ids_2033 %>%\n  group_by(to) %>%\n    summarise(distinct_count = n_distinct(from), total_weight=sum(weights)) %>%\n  left_join(nodes_df, by = c(\"to\" = \"id\")) %>%\n  mutate(percentage_of_total = round(total_weight / sum(edges_df$weights[edges_df$Year == 2033]) * 100, 2)) %>% select(label,distinct_count,total_weight,percentage_of_total) %>% arrange(desc(total_weight))\n\n#| fig-height: 4\ntop_details_2033 %>%\n  kbl() %>%\n  kable_paper(\"hover\", full_width = F)%>%\n  column_spec(4, bold = T) %>%\n  row_spec(0, bold = T, color = \"white\", background = \"#D7261E\")\n\n\n\n\n \n  \n    label \n    distinct_count \n    total_weight \n    percentage_of_total \n  \n \n\n  \n    Caracola del Sol Services \n    45 \n    5023 \n    10.44 \n  \n  \n    Pao gan SE Seal \n    34 \n    4885 \n    10.15 \n  \n  \n    Mar del Este CJSC \n    49 \n    4466 \n    9.28 \n  \n  \n    hǎi dǎn Corporation Wharf \n    46 \n    2046 \n    4.25 \n  \n  \n    Madagascar Coast  AG Freight \n    22 \n    1482 \n    3.08 \n  \n  \n    AquaDelight N.V. Coral Reef \n    20 \n    1424 \n    2.96 \n  \n  \n    Costa de la Felicidad Shipping \n    26 \n    1277 \n    2.65"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#overall-fishing-links-in-2034",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#overall-fishing-links-in-2034",
+    "title": "Take Home Exercise 2",
+    "section": "5.1 Overall Fishing links in 2034",
+    "text": "5.1 Overall Fishing links in 2034\nSimilarly as previous years, in 2033 too,we can see few entities with significantly busy traffic which can be assumed as central entities.\n\n\nShow the code\nvisNetwork(nodes_df, edges_df %>% filter(Year==2034)) %>%\n  visIgraphLayout(layout = \"layout_with_fr\") %>%\n  visOptions(highlightNearest = TRUE,\n             nodesIdSelection = TRUE) %>%\n  visEdges(arrows = 'to',\n           smooth = list(enabled=TRUE,\n                         type=\"curvedCW\")) %>%\n  visLegend() %>%\n  visLayout(randomSeed = 123)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#selecting-central-entities-2",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#selecting-central-entities-2",
+    "title": "Take Home Exercise 2",
+    "section": "5.2 Selecting central Entities",
+    "text": "5.2 Selecting central Entities\nThis time, total 8 entities with one new additional entity to previous selection which can be assumed as central entities are selected and stored in new data frame.\n\n\nShow the code\nselected_ids_2034 <- c(510, 522, 512, 503, 505, 511, 517,516)\n\ntop_ids_2034 <- edges_df %>% filter(Year == '2034') %>% \n  filter(from %in% selected_ids_2033 | to %in% selected_ids_2033)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#plotting-only-selected-entities-2",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#plotting-only-selected-entities-2",
+    "title": "Take Home Exercise 2",
+    "section": "5.3 Plotting only Selected Entities",
+    "text": "5.3 Plotting only Selected Entities\nNew network graph is built to highlight the relationships between selected entities. Similar pattern in which these entities interacted through another different enitites can be also observed here.\n\n\nShow the code\nvisNetwork(nodes_df, top_ids_2034) %>%\n  visIgraphLayout(layout = \"layout_with_fr\") %>%\n  visOptions(highlightNearest = TRUE,\n             nodesIdSelection = TRUE) %>%\n  visEdges(arrows = 'to',\n           smooth = list(enabled=TRUE,\n                         type=\"curvedCW\")) %>%\n  visLegend() %>%\n  visLayout(randomSeed = 123)"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#selected-entities-details-2",
+    "href": "Take_Home_Exercise/Take_Home_EX_02_1/Take_Home_Ex02_1.html#selected-entities-details-2",
+    "title": "Take Home Exercise 2",
+    "section": "5.4 Selected Entities Details",
+    "text": "5.4 Selected Entities Details\nIn 2024, 8 entities which can be assumed as central entities accounted for around 40% of all the events happened in 2034 and they have receive fishery related goods from 238 different entities (32% of total entities).\n\n\nShow the code\ntop_details_2034 <- top_ids_2034 %>%\n  group_by(to) %>%\n    summarise(distinct_count = n_distinct(from), total_weight=sum(weights)) %>%\n  left_join(nodes_df, by = c(\"to\" = \"id\")) %>%\n  mutate(percentage_of_total = round(total_weight / sum(edges_df$weights[edges_df$Year == 2034]) * 100, 2)) %>% select(label,distinct_count,total_weight,percentage_of_total) %>% arrange(desc(total_weight))\n\n#| fig-height: 4\ntop_details_2034 %>%\n  kbl() %>%\n  kable_paper(\"hover\", full_width = F)%>%\n  column_spec(4, bold = T) %>%\n  row_spec(0, bold = T, color = \"white\", background = \"#D7261E\")\n\n\n\n\n \n  \n    label \n    distinct_count \n    total_weight \n    percentage_of_total \n  \n \n\n  \n    Caracola del Sol Services \n    41 \n    3845 \n    8.74 \n  \n  \n    Pao gan SE Seal \n    29 \n    3244 \n    7.37 \n  \n  \n    Mar del Este CJSC \n    51 \n    3232 \n    7.35 \n  \n  \n    hǎi dǎn Corporation Wharf \n    53 \n    2330 \n    5.30 \n  \n  \n    Madagascar Coast  AG Freight \n    22 \n    1546 \n    3.51 \n  \n  \n    AquaDelight N.V. Coral Reef \n    20 \n    1438 \n    3.27 \n  \n  \n    Costa de la Felicidad Shipping \n    22 \n    1245 \n    2.83"
+  },
+  {
+    "objectID": "Take_Home_Exercise/Take_Home_EX_3/Take_Home_Ex03.html",
+    "href": "Take_Home_Exercise/Take_Home_EX_3/Take_Home_Ex03.html",
+    "title": "Take Home Exercise 3",
+    "section": "",
+    "text": "pacman::p_load(jsonlite, tidygraph, ggraph, \n               visNetwork, graphlayouts, ggforce, writexl, \n               skimr, tidytext, tidyverse, igraph,RColorBrewer)\n\n\nmc3_data <- fromJSON(\"data/MC3.json\")\n\n\nmc3_edges <- as_tibble(mc3_data$links) %>% \n  distinct() %>%\n  mutate(source = as.character(source),\n         target = as.character(target),\n         type = as.character(type)) %>%\n  group_by(source, target, type) %>%\n    summarise(weights = n()) %>%\n  filter(source!=target) %>%\n  ungroup()\n\n`summarise()` has grouped output by 'source', 'target'. You can override using\nthe `.groups` argument.\n\n\n\nmc3_nodes <- as_tibble(mc3_data$nodes) %>%\n  mutate(country = as.character(country),\n         id = as.character(id),\n         product_services = as.character(product_services),\n         revenue_omu = as.numeric(as.character(revenue_omu)),\n         type = as.character(type)) %>%\n  select(id, country, type, revenue_omu, product_services)\n\nWarning: There was 1 warning in `mutate()`.\nℹ In argument: `revenue_omu = as.numeric(as.character(revenue_omu))`.\nCaused by warning:\n! NAs introduced by coercion\n\n\n\nDT :: datatable(mc3_edges)\n\nWarning in instance$preRenderHook(instance): It seems your data is too big for\nclient-side DataTables. You may consider server-side processing:\nhttps://rstudio.github.io/DT/server.html\n\n\n\n\n\n\n\n\nDT::datatable(mc3_nodes)\n\nWarning in instance$preRenderHook(instance): It seems your data is too big for\nclient-side DataTables. You may consider server-side processing:\nhttps://rstudio.github.io/DT/server.html\n\n\n\n\n\n\n\n\ntoken_nodes <- mc3_nodes %>%\n  unnest_tokens(word, \n                product_services)\n\n\nstopwords_removed <- token_nodes %>% \n  anti_join(stop_words)\n\nJoining with `by = join_by(word)`\n\n\n\nunique_words <- stopwords_removed %>%\n  count(word, sort = TRUE)\n\n\nwrite_xlsx(unique_words,\"C:/LinnThawTar/ISSS608_VAA/Take_Home_Exercise/Take_Home_EX_3/data/words.xlsx\")\n\n\nid1 <- mc3_edges %>%\n  select(source) %>%\n  rename(id = source)\nid2 <- mc3_edges %>%\n  select(target) %>%\n  rename(id = target)\nmc3_nodes1 <- rbind(id1, id2) %>%\n  distinct() %>%\n  left_join(mc3_nodes,\n            unmatched = \"drop\")\n\nJoining with `by = join_by(id)`\n\n\n\nmc3_graph <- tbl_graph(nodes = mc3_nodes1,\n                       edges = mc3_edges,\n                       directed = TRUE)\n\n\nedges_df <- mc3_graph %>%\n  activate(edges) %>%\n  as.tibble()\n\nWarning: `as.tibble()` was deprecated in tibble 2.0.0.\nℹ Please use `as_tibble()` instead.\nℹ The signature and semantics have changed, see `?as_tibble`.\n\n\n\nnodes_df <- mc3_graph %>%\n  activate(nodes) %>%\n  as.tibble() %>%\n  rename(label = id) %>%\n  mutate(id=row_number()) %>%\n  select(id, label)\n\n\ng <- graph_from_data_frame(d=edges_df, vertices=nodes_df, directed=FALSE) # an undirected graph\ng\n\nIGRAPH d572a7d UN-- 37324 24036 -- \n+ attr: name (v/c), label (v/c), type (e/c), weights (e/n)\n+ edges from d572a7d (vertex names):\n [1] 1 --16060 1 --16061 2 --16062 3 --16063 4 --16064 4 --16065 5 --16066\n [8] 5 --16067 5 --16068 5 --16069 7 --16070 8 --16071 9 --16072 10--16073\n[15] 11--16074 11--16075 11--16076 12--16077 13--16078 13--16079 13--16080\n[22] 13--16081 13--16082 14--16083 14--16084 14--16085 15--16086 16--16087\n[29] 16--16088 16--16089 16--16090 16--16091 17--16092 17--16093 18--16094\n[36] 18--16095 18--16096 18--16097 18--16098 19--16099 20--16100 20--16101\n[43] 22--16102 23--16103 23--16104 23--16105 23--16106 23--16107 23--16108\n[50] 23--16109 23--16110 23--16111 23--16112 23--16113 23--16114 23--16115\n+ ... omitted several edges\n\n\n\ndegree_centrality <- degree(g)\nnodes_df$degree_centrality <- degree_centrality[as.character(nodes_df$label)]\nhead(sort(degree_centrality, decreasing=TRUE))\n\n13903  3483  9501  9903 14267  2053 \n  120    91    72    65    62    54 \n\n\n\nmc3_colors_centrality <- rev(colorRampPalette(brewer.pal(9, \"Oranges\"))(22))\nnodes_df <- nodes_df %>% mutate(degree_rank=37325-floor(rank(degree_centrality)),\n                                color.background=mc3_colors_centrality[degree_rank])\nnetwork_degree <- visNetwork(nodes_df, edges_df, height='350px', width=\"100%\", main=\"Degree Centrality\") %>%\n  visLayout(randomSeed=21) %>% \n  visOptions(highlightNearest=TRUE,\n             nodesIdSelection=TRUE,\n             selectedBy=\"degree_rank\") %>% \n  visInteraction(hideEdgesOnDrag=TRUE,\n                 dragNodes=TRUE,\n                 dragView=TRUE,\n                 zoomView=TRUE,\n                 navigationButtons=TRUE)\nnetwork_degree"
   }
 ]
