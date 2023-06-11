@@ -4,5 +4,20 @@
   },
   "index.qmd": {
     "index.html": "9a4a31a1"
+  },
+  "Hands_On_Ex/Hands_On_Ex01/Hands_On_Ex01.qmd": {
+    "Hands_On_Ex01.html": "821f1d98"
+  },
+  "Hands_On_Ex/Hands_On_Ex02/Hands_On_Ex_02.qmd": {
+    "Hands_On_Ex_02.html": "215f3aca"
+  },
+  "Hands_On_Ex/Hands_On_Ex03/Hands_On_Ex03.qmd": {
+    "Hands_On_Ex03.html": "cd53c7c2"
+  },
+  "Hands_On_Ex/Hands_On_Ex04/Hands_On_Ex04.qmd": {
+    "Hands_On_Ex04.html": "3638d789"
+  },
+  "Hands_On_Ex/Hands_On_Ex05/Hands_On_Ex_05.qmd": {
+    "Hands_On_Ex_05.html": "6f96d75a"
   }
 }

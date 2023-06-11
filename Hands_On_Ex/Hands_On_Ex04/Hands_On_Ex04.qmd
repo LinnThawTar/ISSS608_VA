@@ -1,0 +1,24 @@
+---
+title: "Hands_On Exercise 04"
+execute: 
+  warning: false
+  echo: true
+  eval: true
+---
+
+```{r}
+pacman::p_load(readxl, gifski, gapminder,
+               plotly, gganimate, tidyverse)
+```
+
+```{r}
+col <- c("Country", "Continent")
+globalPop <- read_xls("data/GlobalPopulation.xls",
+                      sheet="Data") %>%
+  mutate_at(col, as.factor) %>%
+  mutate(Year = as.integer(Year))
+```
+
+```{r}
+DT ::datatable(globalPop, class='compact')
+```

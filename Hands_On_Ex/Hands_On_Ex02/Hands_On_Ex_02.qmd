@@ -1,0 +1,98 @@
+---
+title: "Hands_On_Exercise 02"
+author: "Linn Thaw Tar"
+execute: 
+  eval: true
+  echo: true
+  warning: false
+---
+
+# Installing Packages
+
+```{r}
+pacman::p_load(ggrepel, patchwork, 
+               ggthemes, hrbrthemes, tidyverse)
+```
+
+# Importing Data
+
+```{r}
+exam_data <- read.csv('data/exam_data.csv')
+```
+
+# Beyond ggplot2 Annotation: ggrepel
+
+```{r}
+ggplot(data=exam_data,
+       aes(x=MATHS, y=ENGLISH)) +
+  geom_point() + geom_smooth(method=lm, size=0.5) +
+  geom_label(aes(label=ID), hjust=.5, vjust=-.5) +
+  coord_cartesian(xlim=c(0,100),ylim=c(0,100))+
+  ggtitle('Eng Score vs Maths Score')
+```
+
+## Using ggrepel to modify the graph above
+
+```{r}
+ggplot(data=exam_data,aes(x=MATHS,y=ENGLISH))+geom_point()+geom_smooth(method=lm,size=0.5)+geom_label_repel(aes(label=ID),fontface='bold')+coord_cartesian(xlim=c(0,100),ylim=c(0,100))+ggtitle('Eng Score vs Maths Score')
+```
+
+## ggplot2 themes
+
+```{r}
+ggplot(data=exam_data, aes(x=MATHS))+ geom_histogram(bins=20,boundary=100,color='grey25',fill='grey90')+theme_minimal()+ggtitle('Distribution of Maths Score')
+```
+
+## Working with hrbthems package
+
+```{r}
+ggplot(data=exam_data, aes(x=MATHS)) + geom_histogram(bins=20,boundary=100,color="grey25", fill="grey90")+ggtitle('Distribution of Math')+theme_ipsum_es(axis_title_size = 18, base_size = 15, grid = "Y")
+```
+
+## Creating Multiple Graphs
+
+```{r}
+p1 <- ggplot(data=exam_data, aes(x=MATHS)) + geom_histogram(bins=20, boundary=100, color='grey25',fill='grey90')+coord_cartesian(xlim=c(0,100)) + ggtitle('Distribution of Maths Score')
+```
+
+```{r}
+p2 <- ggplot(data=exam_data, aes(x=ENGLISH)) + geom_histogram(bins=20, boundary=100, color='grey25',fill='grey90')+coord_cartesian(xlim=c(0,100)) + ggtitle('Distribution of ENGLISH Score')
+```
+
+```{r}
+p3 <- ggplot(data=exam_data, aes(x=MATHS, y=ENGLISH))+ geom_point()+ geom_smooth(method=lm,linewidth=0.5)+coord_cartesian(xlim=c(0,100),ylim=c(0,100))+ggtitle('English vs Maths Score')
+```
+
+## Combining Graphs
+
+```{r}
+p1+p2
+```
+
+```{r}
+(p1/p2)|p3
+```
+
+```{r}
+((p1 / p2) | p3) + 
+  plot_annotation(tag_levels = 'I')
+```
+
+## Creating figure with insert
+
+```{r}
+p3 + inset_element(p2, 
+                   left = 0.02, 
+                   bottom = 0.7, 
+                   right = 0.5, 
+                   top = 1)
+```
+
+## Creating a composite figure by using patchwork and ggtheme
+
+```{r fig.width=12, fig.height=6}
+patchwork <- (p1 / p2) | p3
+patchwork & theme_economist()
+```
+
+## 
