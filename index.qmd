@@ -1,11 +1,5 @@
 ---
-title: "ISSS608_VA"
+title: "Visual Analytics Journey"
 ---
 
-This is a Quarto website.
-
-To learn more about Quarto websites visit <https://quarto.org/docs/websites>.
-
-```{r}
-1 + 1
-```
+This webpage features my projects done during the **Visual Analytics and Applications** course taken in AY 2022-23 April Term of SMU MITB program.
