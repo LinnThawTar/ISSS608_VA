@@ -193,7 +193,9 @@ edges_top_betweenness <- mc3_graph %>%
   as.tibble()%>%
   select(from, to, type, weights)
 ```
+
 In this code chunk, nodes with betweenness_centrality value over 100,000 are filtered and stored in new data frame.
+
 ```{r}
 nodes_top_betweenness <- mc3_graph %>% filter(betweenness_centrality>100000)%>%
   activate(nodes) %>%
@@ -202,7 +204,9 @@ nodes_top_betweenness <- mc3_graph %>% filter(betweenness_centrality>100000)%>%
   mutate(id=row_number()) %>%
   select(id, label, type, country)
 ```
+
 Then, an interactive network graph that shows interaction of business groups with betweenness centrality value higher than 100,000 is plotted. The nodes are colored according to their business type.
+
 ```{r}
 nodes_top_betweenness <- nodes_top_betweenness %>% mutate(group = ifelse(is.na(type), "NA", type))
 vis_plot <- visNetwork(nodes_top_betweenness, edges_top_betweenness,
@@ -231,11 +235,13 @@ vis_plot <- visNetwork(nodes_top_betweenness, edges_top_betweenness,
   visLayout(randomSeed=4)
 vis_plot
 ```
+
 ### 3.2.3 Degree Centrality
 
-An interactive plot showing nodes and edges in top 95% percentile of degree_centrality will be created. 
+An interactive plot showing nodes and edges in top 95% percentile of degree_centrality will be created.
 
 In this code chunk, edges with degree_centrality value greater than or equals to 3 are filtered and stored in new data frame.
+
 ```{r}
 # Filter edges based on degree centrality threshold
 edges_top_degree <- mc3_graph %>%
@@ -244,7 +250,9 @@ edges_top_degree <- mc3_graph %>%
   as.tibble()%>%
   select(from, to, type, weights)
 ```
+
 In this code chunk, nodes with degree_centrality value greater than or equals to 3 are filtered and stored in new data frame.
+
 ```{r}
 # Filter nodes based on degree centrality threshold
 nodes_top_degree <- mc3_graph %>%
@@ -255,10 +263,12 @@ nodes_top_degree <- mc3_graph %>%
   mutate(id=row_number()) %>%
   select(id, label, type, country)
 ```
-Then, an interactive network graph that shows interaction of business groups with degree centrality greater than or equal to 3 is plotted. The nodes are colored according to their business type.
+
+Then, an interactive network graph that shows interaction of business groups with degree centrality greater than or equal to 3 is plotted. The nodes are colored according to their business type. In the plot, we can see few comapny owners who interactived with several different business groups.
+
 ```{r}
 nodes_top_degree <- nodes_top_degree %>% mutate(group = ifelse(is.na(type), "NA", type))
-vis_plot <- visNetwork(nodes_top_degree, edges_top_degree,
+vis_plot_2 <- visNetwork(nodes_top_degree, edges_top_degree,
            main = "Degree Centrality")%>%
   visIgraphLayout(layout = "layout_with_kk", smooth = FALSE,            
                   physics = TRUE            
@@ -282,9 +292,12 @@ vis_plot <- visNetwork(nodes_top_degree, edges_top_degree,
              forceAtlas2Based = list(gravitationalConstant = -1000),
              timestep = 0.25) %>%
   visLayout(randomSeed=4)
-vis_plot
+vis_plot_2
 ```
+
 ## 3.3 Company Ownership
+
+In the code chunk below, the counts of company ownership by Company Owner is calculated and shown in data table.
 
 ```{r}
 owner_count <- mc3_edges %>%
@@ -296,6 +309,8 @@ owner_count <- mc3_edges %>%
 
 DT::datatable(owner_count,options = list(lengthMenu = c(3, 10, 20)))
 ```
+
+Mean and quartile of company ownership counts are calculated. And owners with higher than average ownership (5) are stored in the list called "target list".
 
 ```{r}
 mean_counts <- mean(owner_count$count, na.rm = TRUE)
@@ -315,9 +330,13 @@ count_df %>%
 target_list <- owner_count$target[owner_count$count >= 5] 
 ```
 
+A new data frame which only include data related to target list is created.
+
 ```{r}
 top_owners_edges <- mc3_edges[mc3_edges$target %in% target_list, ]
 ```
+
+A new nodes data table is created using the source and target field of "top_owner_edges" data frame.
 
 ```{r}
 id1_owners <- top_owners_edges %>%
@@ -331,6 +350,8 @@ top_owners_nodes <- rbind(id1_owners, id2_owners) %>%
   left_join(mc3_nodes1, unmatched='drop')
 ```
 
+The code cunk below is used to build another new graph data model.
+
 ```{r}
 top_owners_graph <- tbl_graph(nodes = top_owners_nodes,
                        edges = top_owners_edges,
@@ -338,6 +359,8 @@ top_owners_graph <- tbl_graph(nodes = top_owners_nodes,
   mutate(betweenness_centrality = centrality_betweenness(),
          degree_centrality = centrality_degree())
 ```
+
+Next, in the code chunk below, we will extract and covert edges and nodes into tibble data frame.
 
 ```{r}
 top_owners_edges_df <- top_owners_graph %>%
@@ -351,9 +374,11 @@ top_owners_nodes_df <- top_owners_graph %>%
   select(id, label, type, country)
 ```
 
+An interactive network graph is built to visualize the interactions of company owners with more than 5 company ownership.
+
 ```{r}
 visNetwork(top_owners_nodes_df,
-           top_owners_edges_df) %>%
+           top_owners_edges_df, main = "Interaction of Top Company Owners") %>%
   visIgraphLayout(layout = "layout_with_kk") %>%
   visOptions(highlightNearest = list(enabled = TRUE,
                                      degree = 1,
@@ -363,13 +388,14 @@ visNetwork(top_owners_nodes_df,
   visEdges(arrows = "to")
 ```
 
-```{r}
-top_owners_words <- left_join(select(top_owners_nodes_df,id,label),select( stopwords_removed,id,word), by = c("label"="id"), unmatched='drop')
-```
+In the code chunk below, new data frame called 'top_owner_words" is created. This data frame will be used to top products and services traded among top company owners.
 
 ```{r}
+top_owners_words <- left_join(select(top_owners_nodes_df,id,label),select( stopwords_removed,id,word), by = c("label"="id"), unmatched='drop')
 top_owners_words <- top_owners_words[!grepl("0|character|unknown|products", top_owners_words$word),]
 ```
+
+Next, a word cloud is created to visualize the most traded products among the company owners. As seen on the word cloud, seafood,fish,tuna and salmon are the most traded products.
 
 ```{r}
 
@@ -378,3 +404,7 @@ freq_word <- table(top_owners_words$word)
 # Create the word cloud
 wordcloud(names(freq_word), freq = freq_word, scale = c(4, 0.5), random.order = FALSE, colors = brewer.pal(8, "Dark2"))
 ```
+
+# 4. Conclusion
+
+In conclusion, this exercise provided insights into the network of company ownership, allowing us to identify influential owners based on centrality measures and explore the common words associated with the companies. The combination of network analysis and text mining techniques helped us gain a deeper understanding of the relationships and patterns within the data.
