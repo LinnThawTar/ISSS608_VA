@@ -1,13 +1,19 @@
 ---
 title: "Take Home Exercise 3"
-format: html
-editor: visual
+execute: 
+  warning: false
+  echo: true
+  eval: true
+format: 
+  html:
+    code-fold: true
+    code-summary: "Show the code"
 ---
 
 ```{r}
-pacman::p_load(jsonlite, tidygraph, ggraph, 
-               visNetwork, graphlayouts, ggforce, writexl, 
-               skimr, tidytext, tidyverse, igraph,RColorBrewer)
+pacman::p_load(jsonlite, tidygraph, ggraph, dplyr,
+               visNetwork, graphlayouts, ggforce, knitr, kableExtra,
+               skimr, tidytext, tidyverse, igraph, ggplot2, RColorBrewer)
 ```
 
 ```{r}
@@ -37,11 +43,11 @@ mc3_nodes <- as_tibble(mc3_data$nodes) %>%
 ```
 
 ```{r}
-DT :: datatable(mc3_edges)
+DT :: datatable(mc3_edges,options = list(lengthMenu = c(3, 10, 20)))
 ```
 
 ```{r}
-DT::datatable(mc3_nodes)
+DT::datatable(mc3_nodes,options = list(lengthMenu = c(3, 10, 20)))
 ```
 
 ```{r}
@@ -61,10 +67,6 @@ unique_words <- stopwords_removed %>%
 ```
 
 ```{r}
-write_xlsx(unique_words,"C:/LinnThawTar/ISSS608_VAA/Take_Home_Exercise/Take_Home_EX_3/data/words.xlsx")
-```
-
-```{r}
 id1 <- mc3_edges %>%
   select(source) %>%
   rename(id = source)
@@ -80,48 +82,236 @@ mc3_nodes1 <- rbind(id1, id2) %>%
 ```{r}
 mc3_graph <- tbl_graph(nodes = mc3_nodes1,
                        edges = mc3_edges,
-                       directed = TRUE)
+                       directed = FALSE) %>%
+  mutate(betweenness_centrality = centrality_betweenness(),
+         degree_centrality = centrality_degree())
+mc3_df <- as.data.frame(mc3_graph, what = "both")
 ```
 
 ```{r}
-edges_df <- mc3_graph %>%
-  activate(edges) %>%
-  as.tibble()
+ggplot(mc3_df,aes(x = type, y = betweenness_centrality)) +                 # Draw ggplot2 boxplot
+  geom_boxplot() +
+  stat_summary(fun = mean, geom = "point", col = "red") +  # Add points to plot
+  stat_summary(fun = mean, geom = "text", col = "red",     # Add text to plot
+               vjust = 1.5, aes(label = paste("Mean:", round(..y.., digits = 1))))
 ```
 
 ```{r}
-nodes_df <- mc3_graph %>%
+library(dplyr)
+library(tidyr)
+
+# Calculate mean and quartiles
+mean_betweenness <- mean(mc3_df$betweenness_centrality, na.rm = TRUE)
+quartiles_betweenness <- quantile(mc3_df$betweenness_centrality, probs = c(0.5,0.9,0.95,0.99), na.rm = TRUE)
+max_betweenness <- max(mc3_df$betweenness_centrality, na.rm = TRUE)
+
+mean_degree <- mean(mc3_df$degree_centrality, na.rm = TRUE)
+quartiles_degree <- quantile(mc3_df$degree_centrality, probs = c(0.50,0.90,0.95), na.rm = TRUE)
+max_degree <- max(mc3_df$degree_centrality, na.rm = TRUE)
+```
+
+```{r}
+# Create a data frame for betweenness centrality
+betweenness_df <- data.frame(
+  Measure = c("Mean", "Quartile 0.50 (Median)", "Quartile 0.90", "Quartile 0.95", "Quartile 0.99", "Maximum"),
+  Value = c(mean_betweenness, quartiles_betweenness, max_betweenness)
+)
+
+# Create a data frame for degree centrality
+degree_df <- data.frame(
+  Measure = c("Mean", "Quartile 0.50 (Median)", "Quartile 0.90","Quartile 0.95","Maximum"),
+  Value = c(mean_degree, quartiles_degree,max_degree)
+)
+```
+
+```{r}
+# Create the table for betweenness centrality
+#| fig-height: 4
+betweenness_df %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F) %>%
+  row_spec(0, bold = T, color = "white", background = "#D7261E")
+```
+
+```{r}
+# Create the table for degree centrality
+#| fig-height: 4
+degree_df %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)%>%
+  row_spec(0, bold = T, color = "white", background = "#D7261E")
+```
+
+```{r}
+# Filter edges based on betweenness centrality threshold
+edges_top_betweenness <- mc3_graph %>%
+  filter(betweenness_centrality > 100000) %>%
+  activate(edges)%>%
+  as.tibble()%>%
+  select(from, to, type, weights)
+```
+
+```{r}
+nodes_top_betweenness <- mc3_graph %>% filter(betweenness_centrality>100000)%>%
   activate(nodes) %>%
   as.tibble() %>%
   rename(label = id) %>%
   mutate(id=row_number()) %>%
-  select(id, label)
+  select(id, label, type, country)
 ```
 
 ```{r}
-g <- graph_from_data_frame(d=edges_df, vertices=nodes_df, directed=FALSE) # an undirected graph
-g
+nodes_top_betweenness <- nodes_top_betweenness %>% mutate(group = ifelse(is.na(type), "NA", type))
+vis_plot <- visNetwork(nodes_top_betweenness, edges_top_betweenness,
+           main = "Interactive Network Graph")%>%
+  visIgraphLayout(layout = "layout_with_kk", smooth = FALSE,            
+                  physics = TRUE            
+                ) %>%
+  visNodes(size = 50, label=nodes_top_betweenness$label) %>%
+  visEdges(color = list(highlight = "lightgray"), arrows = 'to') %>%
+  visOptions(selectedBy = "type",
+             highlightNearest = list(enabled = TRUE,
+                                     degree = 1,
+                                     hover = TRUE,
+                                     labelOnly = TRUE),
+             nodesIdSelection = TRUE) %>%
+  visGroups(groupname = "Company", color = "lightblue") %>%
+  visGroups(groupname = "Company Contacts", color = "salmon") %>%
+  visGroups(groupname = "Beneficial Owner", color = "yellow") %>%
+  visGroups(groupname = "NA", color = "grey") %>%
+  visLegend(width = 0.1) %>%
+  visPhysics(repulsion = list(springlength = 50),
+             maxVelocity = 2,
+             solver = "forceAtlas2Based",
+             forceAtlas2Based = list(gravitationalConstant = -1000),
+             timestep = 0.25) %>%
+  visLayout(randomSeed=4)
+vis_plot
 ```
 
 ```{r}
-degree_centrality <- degree(g)
-nodes_df$degree_centrality <- degree_centrality[as.character(nodes_df$label)]
-head(sort(degree_centrality, decreasing=TRUE))
+# Filter edges based on degree centrality threshold
+edges_top_degree <- mc3_graph %>%
+  filter(degree_centrality >= 4) %>%
+  activate(edges)%>%
+  as.tibble()%>%
+  select(from, to, type, weights)
 ```
 
 ```{r}
-mc3_colors_centrality <- rev(colorRampPalette(brewer.pal(9, "Oranges"))(22))
-nodes_df <- nodes_df %>% mutate(degree_rank=37325-floor(rank(degree_centrality)),
-                                color.background=mc3_colors_centrality[degree_rank])
-network_degree <- visNetwork(nodes_df, edges_df, height='350px', width="100%", main="Degree Centrality") %>%
-  visLayout(randomSeed=21) %>% 
-  visOptions(highlightNearest=TRUE,
-             nodesIdSelection=TRUE,
-             selectedBy="degree_rank") %>% 
-  visInteraction(hideEdgesOnDrag=TRUE,
-                 dragNodes=TRUE,
-                 dragView=TRUE,
-                 zoomView=TRUE,
-                 navigationButtons=TRUE)
-network_degree
+# Filter nodes based on degree centrality threshold
+nodes_top_degree <- mc3_graph %>%
+  filter(degree_centrality >= 4) %>%
+  activate(nodes) %>%
+  as.tibble() %>%
+  rename(label = id) %>%
+  mutate(id=row_number()) %>%
+  select(id, label, type, country)
+```
+
+```{r}
+nodes_top_degree <- nodes_top_degree %>% mutate(group = ifelse(is.na(type), "NA", type))
+vis_plot <- visNetwork(nodes_top_degree, edges_top_degree,
+           main = "Interactive Network Graph")%>%
+  visIgraphLayout(layout = "layout_with_kk", smooth = FALSE,            
+                  physics = TRUE            
+                ) %>%
+  visNodes(size = 50, label=nodes_top_degree$label) %>%
+  visEdges(color = list(highlight = "lightgray"), arrows = 'to') %>%
+  visOptions(selectedBy = "type",
+             highlightNearest = list(enabled = TRUE,
+                                     degree = 1,
+                                     hover = TRUE,
+                                     labelOnly = TRUE),
+             nodesIdSelection = TRUE) %>%
+  visGroups(groupname = "Company", color = "lightblue") %>%
+  visGroups(groupname = "Company Contacts", color = "salmon") %>%
+  visGroups(groupname = "Beneficial Owner", color = "yellow") %>%
+  visGroups(groupname = "NA", color = "grey") %>%
+  visLegend(width = 0.1) %>%
+  visPhysics(repulsion = list(springlength = 50),
+             maxVelocity = 2,
+             solver = "forceAtlas2Based",
+             forceAtlas2Based = list(gravitationalConstant = -1000),
+             timestep = 0.25) %>%
+  visLayout(randomSeed=4)
+vis_plot
+```
+
+```{r}
+owner_count <- mc3_edges %>%
+  filter(type == "Beneficial Owner") %>%
+  group_by(target) %>%
+  summarise(count = n()) %>%
+  filter(count >2) %>%
+  arrange(desc(count))
+
+DT::datatable(owner_count,options = list(lengthMenu = c(3, 10, 20)))
+```
+
+```{r}
+mean_counts <- mean(owner_count$count, na.rm = TRUE)
+quartiles_counts <- quantile(owner_count$count, probs = c(0.5,0.95), na.rm = TRUE)
+
+# Create a data frame for betweenness centrality
+count_df <- data.frame(
+  Measure = c("Mean", "Quartile 0.50 (Median)", "Quartile 0.95"),
+  Value = c(mean_counts, quartiles_counts)
+)
+
+count_df %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F) %>%
+  row_spec(0, bold = T, color = "white", background = "#D7261E")
+
+target_list <- owner_count$target[owner_count$count >= 5] 
+```
+
+```{r}
+top_owners_edges <- mc3_edges[mc3_edges$target %in% target_list, ]
+```
+
+```{r}
+id1_owners <- top_owners_edges %>%
+  select(source) %>%
+  rename(id = source)
+id2_owners <- top_owners_edges %>%
+  select(target) %>%
+  rename(id = target)
+top_owners_nodes <- rbind(id1_owners, id2_owners) %>% 
+  distinct() %>%
+  left_join(mc3_nodes1, unmatched='drop')
+  
+```
+
+```{r}
+top_owners_graph <- tbl_graph(nodes = top_owners_nodes,
+                       edges = top_owners_edges,
+                       directed = FALSE) %>%
+  mutate(betweenness_centrality = centrality_betweenness(),
+         degree_centrality = centrality_degree())
+```
+
+```{r}
+top_owners_edges_df <- top_owners_graph %>%
+  activate(edges) %>%
+  as_tibble()
+top_owners_nodes_df <- top_owners_graph %>%
+  activate(nodes) %>%
+  as.tibble() %>%
+  rename(label = id) %>%
+  mutate(id=row_number()) %>%
+  select(id, label, type, country)
+```
+
+```{r}
+visNetwork(top_owners_nodes_df,
+           top_owners_edges_df) %>%
+  visIgraphLayout(layout = "layout_with_kk") %>%
+  visOptions(highlightNearest = list(enabled = TRUE,
+                                     degree = 1,
+                                     hover = TRUE,
+                                     labelOnly = TRUE),
+             nodesIdSelection = TRUE) %>%
+  visEdges(arrows = "to")
 ```
