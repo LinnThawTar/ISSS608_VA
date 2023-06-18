@@ -10,15 +10,33 @@ format:
     code-summary: "Show the code"
 ---
 
+# 1. Introduction
+
+This exercise will attempt to Question 1 of Mini Challenge 2 from Vast Challenge 2023. This exercise focuses on utilizing visual analytics to identify anomalies in the business groups within the knowledge graph.
+
+# 2. Data Preparation
+
+## 2.1 Installing Packages
+
+In the code chunk below, necessary R packages are installed to import data, data preparation and visualization.
+
 ```{r}
 pacman::p_load(jsonlite, tidygraph, ggraph, dplyr,
                visNetwork, graphlayouts, ggforce, knitr, kableExtra,
-               skimr, tidytext, tidyverse, igraph, ggplot2, RColorBrewer)
+               skimr, tidytext, tidyverse, igraph, ggplot2, RColorBrewer, wordcloud)
 ```
+
+## 2.2 Importing Data
+
+In the code chunk below, `fromJSON` function is used to import MC3 data into R environment.
 
 ```{r}
 mc3_data <- fromJSON("data/MC3.json")
 ```
+
+## 2.3 Extracting Edges
+
+The code chunk below is used to extract links from mc3_data and stored in the tibble data frame called "mc3_edges".
 
 ```{r}
 mc3_edges <- as_tibble(mc3_data$links) %>% 
@@ -32,6 +50,10 @@ mc3_edges <- as_tibble(mc3_data$links) %>%
   ungroup()
 ```
 
+## 2.4 Extracting Nodes
+
+The code chunk below is used to extract nodes from mc3_data and stored in the tibble data frame called "mc3_edges".
+
 ```{r}
 mc3_nodes <- as_tibble(mc3_data$nodes) %>%
   mutate(country = as.character(country),
@@ -42,6 +64,10 @@ mc3_nodes <- as_tibble(mc3_data$nodes) %>%
   select(id, country, type, revenue_omu, product_services)
 ```
 
+## 2.4 Exploring Data
+
+In the code chunk below, `datatable()` functions is used to display mc3_edges and mc3_nodes tibble data frame as an interactive table.
+
 ```{r}
 DT :: datatable(mc3_edges,options = list(lengthMenu = c(3, 10, 20)))
 ```
@@ -50,21 +76,30 @@ DT :: datatable(mc3_edges,options = list(lengthMenu = c(3, 10, 20)))
 DT::datatable(mc3_nodes,options = list(lengthMenu = c(3, 10, 20)))
 ```
 
+## 2.5 Text Sensing
+
+In this code chunk, `unnest_tokens` function is used to split workds in "product_services" column.
+
 ```{r}
 token_nodes <- mc3_nodes %>%
   unnest_tokens(word, 
                 product_services)
 ```
 
+## 2.6 Removing Stop Words
+
+Tidytext package function called `stop_words` is used to remove stop words.
+
 ```{r}
 stopwords_removed <- token_nodes %>% 
   anti_join(stop_words)
 ```
 
-```{r}
-unique_words <- stopwords_removed %>%
-  count(word, sort = TRUE)
-```
+# 3. Network Visualization and Analysis
+
+## 3.1 Building Network Model
+
+In the code chunk below, a new node data table is prepared by using the source and target field of mc3_edges data frame.
 
 ```{r}
 id1 <- mc3_edges %>%
@@ -79,6 +114,8 @@ mc3_nodes1 <- rbind(id1, id2) %>%
             unmatched = "drop")
 ```
 
+In this code chunk, tidy graph data model is created.
+
 ```{r}
 mc3_graph <- tbl_graph(nodes = mc3_nodes1,
                        edges = mc3_edges,
@@ -88,18 +125,11 @@ mc3_graph <- tbl_graph(nodes = mc3_nodes1,
 mc3_df <- as.data.frame(mc3_graph, what = "both")
 ```
 
-```{r}
-ggplot(mc3_df,aes(x = type, y = betweenness_centrality)) +                 # Draw ggplot2 boxplot
-  geom_boxplot() +
-  stat_summary(fun = mean, geom = "point", col = "red") +  # Add points to plot
-  stat_summary(fun = mean, geom = "text", col = "red",     # Add text to plot
-               vjust = 1.5, aes(label = paste("Mean:", round(..y.., digits = 1))))
-```
+## 3.2 Centrality Measurements
+
+Betweenness Centrality and Degree Centrality measurements are used to quantify each node's interaction in the network and visualize the interactions. In the Code chunk below, mean and quartiles of betweenness centrality and degree centrality are calculated.
 
 ```{r}
-library(dplyr)
-library(tidyr)
-
 # Calculate mean and quartiles
 mean_betweenness <- mean(mc3_df$betweenness_centrality, na.rm = TRUE)
 quartiles_betweenness <- quantile(mc3_df$betweenness_centrality, probs = c(0.5,0.9,0.95,0.99), na.rm = TRUE)
@@ -109,6 +139,8 @@ mean_degree <- mean(mc3_df$degree_centrality, na.rm = TRUE)
 quartiles_degree <- quantile(mc3_df$degree_centrality, probs = c(0.50,0.90,0.95), na.rm = TRUE)
 max_degree <- max(mc3_df$degree_centrality, na.rm = TRUE)
 ```
+
+After that,the results are stored in the respective data frames.
 
 ```{r}
 # Create a data frame for betweenness centrality
@@ -124,13 +156,17 @@ degree_df <- data.frame(
 )
 ```
 
+### 3.2.1 Mean and Quartiles of Centrality Measurement
+
 ```{r}
 # Create the table for betweenness centrality
 #| fig-height: 4
 betweenness_df %>%
-  kbl() %>%
-  kable_paper("hover", full_width = F) %>%
-  row_spec(0, bold = T, color = "white", background = "#D7261E")
+  kable() %>%
+  kable_styling("hover", full_width = F) %>%
+  row_spec(0, bold = T, color = "white", background = "#D7261E") %>%
+  add_header_above(header = c("Betweenness Centrality Measurement" = ncol(betweenness_df)))
+
 ```
 
 ```{r}
@@ -139,8 +175,15 @@ betweenness_df %>%
 degree_df %>%
   kbl() %>%
   kable_paper("hover", full_width = F)%>%
-  row_spec(0, bold = T, color = "white", background = "#D7261E")
+  row_spec(0, bold = T, color = "white", background = "#D7261E") %>%
+  add_header_above(header = c("Degree Centrality Measurement" = ncol(degree_df)))
 ```
+
+### 3.2.2 Betweenness Centrality
+
+An interactive plot showing top few nodes and edges with highest betweenness_centrality will be created.
+
+For this, in this code chunk, edges with betweenness_centrality value over 100,000 are filtered and stored in new data frame.
 
 ```{r}
 # Filter edges based on betweenness centrality threshold
@@ -150,7 +193,7 @@ edges_top_betweenness <- mc3_graph %>%
   as.tibble()%>%
   select(from, to, type, weights)
 ```
-
+In this code chunk, nodes with betweenness_centrality value over 100,000 are filtered and stored in new data frame.
 ```{r}
 nodes_top_betweenness <- mc3_graph %>% filter(betweenness_centrality>100000)%>%
   activate(nodes) %>%
@@ -159,11 +202,11 @@ nodes_top_betweenness <- mc3_graph %>% filter(betweenness_centrality>100000)%>%
   mutate(id=row_number()) %>%
   select(id, label, type, country)
 ```
-
+Then, an interactive network graph that shows interaction of business groups with betweenness centrality value higher than 100,000 is plotted. The nodes are colored according to their business type.
 ```{r}
 nodes_top_betweenness <- nodes_top_betweenness %>% mutate(group = ifelse(is.na(type), "NA", type))
 vis_plot <- visNetwork(nodes_top_betweenness, edges_top_betweenness,
-           main = "Interactive Network Graph")%>%
+           main = "Betweenness Centrality")%>%
   visIgraphLayout(layout = "layout_with_kk", smooth = FALSE,            
                   physics = TRUE            
                 ) %>%
@@ -188,31 +231,35 @@ vis_plot <- visNetwork(nodes_top_betweenness, edges_top_betweenness,
   visLayout(randomSeed=4)
 vis_plot
 ```
+### 3.2.3 Degree Centrality
 
+An interactive plot showing nodes and edges in top 95% percentile of degree_centrality will be created. 
+
+In this code chunk, edges with degree_centrality value greater than or equals to 3 are filtered and stored in new data frame.
 ```{r}
 # Filter edges based on degree centrality threshold
 edges_top_degree <- mc3_graph %>%
-  filter(degree_centrality >= 4) %>%
+  filter(degree_centrality >= 3) %>%
   activate(edges)%>%
   as.tibble()%>%
   select(from, to, type, weights)
 ```
-
+In this code chunk, nodes with degree_centrality value greater than or equals to 3 are filtered and stored in new data frame.
 ```{r}
 # Filter nodes based on degree centrality threshold
 nodes_top_degree <- mc3_graph %>%
-  filter(degree_centrality >= 4) %>%
+  filter(degree_centrality >= 3) %>%
   activate(nodes) %>%
   as.tibble() %>%
   rename(label = id) %>%
   mutate(id=row_number()) %>%
   select(id, label, type, country)
 ```
-
+Then, an interactive network graph that shows interaction of business groups with degree centrality greater than or equal to 3 is plotted. The nodes are colored according to their business type.
 ```{r}
 nodes_top_degree <- nodes_top_degree %>% mutate(group = ifelse(is.na(type), "NA", type))
 vis_plot <- visNetwork(nodes_top_degree, edges_top_degree,
-           main = "Interactive Network Graph")%>%
+           main = "Degree Centrality")%>%
   visIgraphLayout(layout = "layout_with_kk", smooth = FALSE,            
                   physics = TRUE            
                 ) %>%
@@ -237,6 +284,7 @@ vis_plot <- visNetwork(nodes_top_degree, edges_top_degree,
   visLayout(randomSeed=4)
 vis_plot
 ```
+## 3.3 Company Ownership
 
 ```{r}
 owner_count <- mc3_edges %>%
@@ -281,7 +329,6 @@ id2_owners <- top_owners_edges %>%
 top_owners_nodes <- rbind(id1_owners, id2_owners) %>% 
   distinct() %>%
   left_join(mc3_nodes1, unmatched='drop')
-  
 ```
 
 ```{r}
@@ -314,4 +361,20 @@ visNetwork(top_owners_nodes_df,
                                      labelOnly = TRUE),
              nodesIdSelection = TRUE) %>%
   visEdges(arrows = "to")
+```
+
+```{r}
+top_owners_words <- left_join(select(top_owners_nodes_df,id,label),select( stopwords_removed,id,word), by = c("label"="id"), unmatched='drop')
+```
+
+```{r}
+top_owners_words <- top_owners_words[!grepl("0|character|unknown|products", top_owners_words$word),]
+```
+
+```{r}
+
+freq_word <- table(top_owners_words$word)
+
+# Create the word cloud
+wordcloud(names(freq_word), freq = freq_word, scale = c(4, 0.5), random.order = FALSE, colors = brewer.pal(8, "Dark2"))
 ```
